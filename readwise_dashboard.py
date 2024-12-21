@@ -58,9 +58,26 @@ if st.button("Update"):
         if not data.empty:
             st.success("Data loaded successfully!")
 
+            # Slider for adjusting the date range
+            min_date = data["date"].min()
+            max_date = data["date"].max()
+
+            range_percent = st.slider(
+                "Adjust Date Range (as % of total days):",
+                min_value=0,
+                max_value=100,
+                value=(0, 100),
+                step=1,
+            )
+
+            start_idx = int(len(data) * range_percent[0] / 100)
+            end_idx = int(len(data) * range_percent[1] / 100)
+
+            filtered_data = data.iloc[start_idx:end_idx]
+
             # Plotting
             fig = px.line(
-                data,
+                filtered_data,
                 x="date",
                 y="pages",
                 title="Pages Read Per Day",
