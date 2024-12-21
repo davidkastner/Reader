@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
 import pandas as pd
-import datetime
 import plotly.express as px
+from datetime import datetime
 
 # Constants
 API_URL = "https://readwise.io/api/v3/list/"
@@ -19,89 +19,94 @@ def fetch_readwise_data():
         st.error(f"Error fetching data: {e}")
         return []
 
-# Preprocessing Function
-def process_data(data, max_pages):
+# Data Processing Function
+def process_data(data, max_words):
     if not data:
-        return pd.DataFrame(columns=["date", "pages"])
+        return pd.DataFrame(columns=["date", "words"])
 
     dates = []
-    page_counts = []
+    word_counts = []
 
     for doc in data:
-        # Ensure "last_opened_at" and "word_count" exist and are not None
         last_opened_at = doc.get("last_opened_at")
         word_count = doc.get("word_count")
 
         if last_opened_at and word_count:
             date = last_opened_at[:10]  # Extract the date
-            pages = word_count / 250  # Assume 250 words per page
-            if pages <= max_pages:  # Filter out excessively high values
+            if word_count <= max_words:
                 dates.append(date)
-                page_counts.append(pages)
+                word_counts.append(word_count)
 
-    df = pd.DataFrame({"date": dates, "pages": page_counts})
+    df = pd.DataFrame({"date": dates, "words": word_counts})
     df["date"] = pd.to_datetime(df["date"])
     df = df.groupby("date").sum().reset_index()
     return df
 
-# Streamlit App
-st.set_page_config(page_title="Readwise Reader Dashboard", layout="wide")
-st.title("Readwise Reader Dashboard")
-st.write("Track your reading progress over time with data from your Readwise Reader.")
-
-# Input box for filtering excessive values
-max_pages = st.number_input(
-    "Enter the maximum number of pages to allow per day:", value=100, step=10
-)
-
-# Fetch and process data automatically on load
-st.write("Fetching your reading data...")
-raw_data = fetch_readwise_data()
-
-data = process_data(raw_data, max_pages)
-
-if not data.empty:
-    st.success("Data loaded successfully!")
-
-    # Date range slider
-    min_date = data["date"].min()
-    max_date = data["date"].max()
-
-    date_range = st.slider(
-        "Select Date Range:",
-        min_value=min_date,
-        max_value=max_date,
-        value=(min_date, max_date),
-    )
-
-    filtered_data = data[(data["date"] >= date_range[0]) & (data["date"] <= date_range[1])]
-
-    # Plotting
+# Plotting Function
+def plot_data(filtered_data):
     fig = px.line(
         filtered_data,
         x="date",
-        y="pages",
-        title="Pages Read Per Day",
-        labels={"date": "Date", "pages": "Pages Read"},
+        y="words",
+        title="Words Read Per Day",
+        labels={"date": "Date", "words": "Words Read"},
     )
     fig.update_traces(line_color="#EC5A53")
     fig.update_layout(
         xaxis_title="Date",
-        yaxis_title="Pages",
+        yaxis_title="Words",
         template="plotly_white"
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Basic statistics
-    total_pages = filtered_data["pages"].sum()
-    avg_pages = filtered_data["pages"].mean()
-    max_pages_day = filtered_data.loc[filtered_data["pages"].idxmax()]
+# Statistics Display Function
+def display_statistics(filtered_data):
+    total_words = filtered_data["words"].sum()
+    avg_words = filtered_data["words"].mean()
+    max_words_day = filtered_data.loc[filtered_data["words"].idxmax()]
 
     st.subheader("Statistics")
-    st.write(f"**Total Pages Read:** {total_pages:.2f}")
-    st.write(f"**Average Pages Per Day:** {avg_pages:.2f}")
-    st.write(f"**Highest Pages Read in a Day:** {max_pages_day['pages']:.2f} on {max_pages_day['date'].strftime('%Y-%m-%d')}")
-else:
-    st.warning("No reading data available to display.")
+    st.write(f"**Total Words Read:** {total_words:.0f}")
+    st.write(f"**Average Words Per Day:** {avg_words:.0f}")
+    st.write(f"**Highest Words Read in a Day:** {max_words_day['words']:.0f} on {max_words_day['date'].strftime('%Y-%m-%d')}")
 
-st.write("Adjust the maximum pages per day or the date range to refine the display.")
+# Main Function to Run the App
+def main():
+    st.set_page_config(page_title="Readwise Reader Dashboard", layout="wide")
+    st.title("Readwise Reader Dashboard")
+    st.write("Track your reading progress over time with data from your Readwise Reader.")
+
+    max_words = st.number_input(
+        "Enter the maximum number of words to allow per day:", value=25000, step=1000
+    )
+
+    st.write("Fetching your reading data...")
+    raw_data = fetch_readwise_data()
+    data = process_data(raw_data, max_words)
+
+    if not data.empty:
+        st.success("Data loaded successfully!")
+
+        # Date range slider
+        min_date = data["date"].min().date()
+        max_date = data["date"].max().date()
+
+        date_range = st.slider(
+            "Select Date Range:",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+        )
+
+        filtered_data = data[(data["date"] >= pd.to_datetime(date_range[0])) & (data["date"] <= pd.to_datetime(date_range[1]))]
+
+        plot_data(filtered_data)
+        display_statistics(filtered_data)
+    else:
+        st.warning("No reading data available to display.")
+
+    st.write("Adjust the maximum words per day or the date range to refine the display.")
+
+# Run the App
+if __name__ == "__main__":
+    main()
