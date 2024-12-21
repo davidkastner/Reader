@@ -45,6 +45,7 @@ def process_data(data, max_pages):
     return df
 
 # Streamlit App
+st.set_page_config(page_title="Readwise Reader Dashboard", layout="wide")
 st.title("Readwise Reader Dashboard")
 st.write("Track your reading progress over time with data from your Readwise Reader.")
 
@@ -62,22 +63,18 @@ data = process_data(raw_data, max_pages)
 if not data.empty:
     st.success("Data loaded successfully!")
 
-    # Slider for adjusting the date range
+    # Date range slider
     min_date = data["date"].min()
     max_date = data["date"].max()
 
-    range_percent = st.slider(
-        "Adjust Date Range (as % of total days):",
-        min_value=0,
-        max_value=100,
-        value=(0, 100),
-        step=1,
+    date_range = st.slider(
+        "Select Date Range:",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date),
     )
 
-    start_idx = int(len(data) * range_percent[0] / 100)
-    end_idx = int(len(data) * range_percent[1] / 100)
-
-    filtered_data = data.iloc[start_idx:end_idx]
+    filtered_data = data[(data["date"] >= date_range[0]) & (data["date"] <= date_range[1])]
 
     # Plotting
     fig = px.line(
@@ -87,12 +84,23 @@ if not data.empty:
         title="Pages Read Per Day",
         labels={"date": "Date", "pages": "Pages Read"},
     )
+    fig.update_traces(line_color="#EC5A53")
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Pages",
         template="plotly_white"
     )
-    st.plotly_chart(fig)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Basic statistics
+    total_pages = filtered_data["pages"].sum()
+    avg_pages = filtered_data["pages"].mean()
+    max_pages_day = filtered_data.loc[filtered_data["pages"].idxmax()]
+
+    st.subheader("Statistics")
+    st.write(f"**Total Pages Read:** {total_pages:.2f}")
+    st.write(f"**Average Pages Per Day:** {avg_pages:.2f}")
+    st.write(f"**Highest Pages Read in a Day:** {max_pages_day['pages']:.2f} on {max_pages_day['date'].strftime('%Y-%m-%d')}")
 else:
     st.warning("No reading data available to display.")
 
