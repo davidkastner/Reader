@@ -20,7 +20,7 @@ def fetch_readwise_data():
         return []
 
 # Preprocessing Function
-def process_data(data):
+def process_data(data, max_pages):
     if not data:
         return pd.DataFrame(columns=["date", "pages"])
 
@@ -35,8 +35,9 @@ def process_data(data):
         if last_opened_at and word_count:
             date = last_opened_at[:10]  # Extract the date
             pages = word_count / 250  # Assume 250 words per page
-            dates.append(date)
-            page_counts.append(pages)
+            if pages <= max_pages:  # Filter out excessively high values
+                dates.append(date)
+                page_counts.append(pages)
 
     df = pd.DataFrame({"date": dates, "pages": page_counts})
     df["date"] = pd.to_datetime(df["date"])
@@ -47,51 +48,52 @@ def process_data(data):
 st.title("Readwise Reader Dashboard")
 st.write("Track your reading progress over time with data from your Readwise Reader.")
 
-if st.button("Update"):
-    st.write("Fetching your reading data...")
-    raw_data = fetch_readwise_data()
-    
-    if raw_data:
-        st.write("Processing data...")
-        data = process_data(raw_data)
+# Input box for filtering excessive values
+max_pages = st.number_input(
+    "Enter the maximum number of pages to allow per day:", value=100, step=10
+)
 
-        if not data.empty:
-            st.success("Data loaded successfully!")
+# Fetch and process data automatically on load
+st.write("Fetching your reading data...")
+raw_data = fetch_readwise_data()
 
-            # Slider for adjusting the date range
-            min_date = data["date"].min()
-            max_date = data["date"].max()
+data = process_data(raw_data, max_pages)
 
-            range_percent = st.slider(
-                "Adjust Date Range (as % of total days):",
-                min_value=0,
-                max_value=100,
-                value=(0, 100),
-                step=1,
-            )
+if not data.empty:
+    st.success("Data loaded successfully!")
 
-            start_idx = int(len(data) * range_percent[0] / 100)
-            end_idx = int(len(data) * range_percent[1] / 100)
+    # Slider for adjusting the date range
+    min_date = data["date"].min()
+    max_date = data["date"].max()
 
-            filtered_data = data.iloc[start_idx:end_idx]
+    range_percent = st.slider(
+        "Adjust Date Range (as % of total days):",
+        min_value=0,
+        max_value=100,
+        value=(0, 100),
+        step=1,
+    )
 
-            # Plotting
-            fig = px.line(
-                filtered_data,
-                x="date",
-                y="pages",
-                title="Pages Read Per Day",
-                labels={"date": "Date", "pages": "Pages Read"},
-            )
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Pages",
-                template="plotly_white"
-            )
-            st.plotly_chart(fig)
-        else:
-            st.warning("No reading data available to display.")
-    else:
-        st.error("Failed to retrieve or process data.")
+    start_idx = int(len(data) * range_percent[0] / 100)
+    end_idx = int(len(data) * range_percent[1] / 100)
 
-st.write("Click the 'Update' button to refresh your reading data.")
+    filtered_data = data.iloc[start_idx:end_idx]
+
+    # Plotting
+    fig = px.line(
+        filtered_data,
+        x="date",
+        y="pages",
+        title="Pages Read Per Day",
+        labels={"date": "Date", "pages": "Pages Read"},
+    )
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Pages",
+        template="plotly_white"
+    )
+    st.plotly_chart(fig)
+else:
+    st.warning("No reading data available to display.")
+
+st.write("Adjust the maximum pages per day or the date range to refine the display.")
