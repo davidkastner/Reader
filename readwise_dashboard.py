@@ -1,18 +1,12 @@
-import os
+import streamlit as st
 import requests
 import pandas as pd
 import datetime
 import plotly.express as px
-import streamlit as st
 
 # Constants
 API_URL = "https://readwise.io/api/v3/list/"
-
-# Fetch the Readwise token from environment variables
-TOKEN = os.getenv("READWISE_TOKEN")
-if not TOKEN:
-    st.error("Readwise token not found. Please set it as an environment variable in your Streamlit Cloud settings.")
-    st.stop()
+TOKEN = st.secrets["READWISE_TOKEN"]  # Fetch the token securely
 
 # Helper Function to Fetch Data
 def fetch_readwise_data():
@@ -34,9 +28,12 @@ def process_data(data):
     page_counts = []
 
     for doc in data:
-        if "last_opened_at" in doc and "word_count" in doc:
-            date = doc["last_opened_at"][:10]  # Extract the date
-            word_count = doc["word_count"]
+        # Ensure "last_opened_at" and "word_count" exist and are not None
+        last_opened_at = doc.get("last_opened_at")
+        word_count = doc.get("word_count")
+
+        if last_opened_at and word_count:
+            date = last_opened_at[:10]  # Extract the date
             pages = word_count / 250  # Assume 250 words per page
             dates.append(date)
             page_counts.append(pages)
