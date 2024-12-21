@@ -1,24 +1,35 @@
-import streamlit as st
+import os
 import requests
 import pandas as pd
 import datetime
 import plotly.express as px
+import streamlit as st
 
 # Constants
 API_URL = "https://readwise.io/api/v3/list/"
-TOKEN = "Your_Readwise_Access_Token"
+
+# Fetch the Readwise token from environment variables
+TOKEN = os.getenv("READWISE_TOKEN")
+if not TOKEN:
+    st.error("Readwise token not found. Please set it as an environment variable in your Streamlit Cloud settings.")
+    st.stop()
 
 # Helper Function to Fetch Data
 def fetch_readwise_data():
     headers = {"Authorization": f"Token {TOKEN}"}
-    response = requests.get(API_URL, headers=headers)
-    if response.status_code != 200:
-        st.error("Failed to fetch data. Check your API token or network.")
-        return None
-    return response.json()["results"]
+    try:
+        response = requests.get(API_URL, headers=headers)
+        response.raise_for_status()
+        return response.json().get("results", [])
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching data: {e}")
+        return []
 
 # Preprocessing Function
 def process_data(data):
+    if not data:
+        return pd.DataFrame(columns=["date", "pages"])
+
     dates = []
     page_counts = []
 
@@ -37,19 +48,36 @@ def process_data(data):
 
 # Streamlit App
 st.title("Readwise Reader Dashboard")
-st.write("Track your reading progress over time.")
+st.write("Track your reading progress over time with data from your Readwise Reader.")
 
 if st.button("Update"):
     st.write("Fetching your reading data...")
     raw_data = fetch_readwise_data()
+    
     if raw_data:
         st.write("Processing data...")
         data = process_data(raw_data)
-        st.success("Data loaded successfully!")
 
-        # Plotting
-        fig = px.line(data, x="date", y="pages", title="Pages Read Per Day")
-        fig.update_layout(xaxis_title="Date", yaxis_title="Pages")
-        st.plotly_chart(fig)
+        if not data.empty:
+            st.success("Data loaded successfully!")
+
+            # Plotting
+            fig = px.line(
+                data,
+                x="date",
+                y="pages",
+                title="Pages Read Per Day",
+                labels={"date": "Date", "pages": "Pages Read"},
+            )
+            fig.update_layout(
+                xaxis_title="Date",
+                yaxis_title="Pages",
+                template="plotly_white"
+            )
+            st.plotly_chart(fig)
+        else:
+            st.warning("No reading data available to display.")
     else:
-        st.error("No data available.")
+        st.error("Failed to retrieve or process data.")
+
+st.write("Click the 'Update' button to refresh your reading data.")
