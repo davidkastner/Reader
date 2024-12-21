@@ -44,14 +44,22 @@ def process_data(data, max_words):
 
 # Plotting Function
 def plot_data(filtered_data):
-    fig = px.line(
-        filtered_data,
-        x="date",
-        y="words",
-        title="Words Read Per Day",
-        labels={"date": "Date", "words": "Words Read"},
-    )
-    fig.update_traces(line_color="#EC5A53")
+    if filtered_data.empty:
+        st.write("No data available to plot.")
+        fig = px.line(
+            title="Words Read Per Day",
+            labels={"date": "Date", "words": "Words Read"},
+        )
+    else:
+        fig = px.line(
+            filtered_data,
+            x="date",
+            y="words",
+            title="Words Read Per Day",
+            labels={"date": "Date", "words": "Words Read"},
+        )
+        fig.update_traces(line_color="#EC5A53")
+    
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Words",
@@ -61,6 +69,10 @@ def plot_data(filtered_data):
 
 # Statistics Display Function
 def display_statistics(filtered_data):
+    if filtered_data.empty:
+        st.write("No statistics to display as no data is available.")
+        return
+
     total_words = filtered_data["words"].sum()
     avg_words = filtered_data["words"].mean()
     max_words_day = filtered_data.loc[filtered_data["words"].idxmax()]
@@ -73,7 +85,7 @@ def display_statistics(filtered_data):
 # Main Function to Run the App
 def main():
     st.set_page_config(page_title="Readwise Reader Dashboard", layout="wide")
-    st.title("Readwise Reader Dashboard")
+    st.title("Reader Dashboard")
     st.write("Track your reading progress over time with data from your Readwise Reader.")
 
     max_words = st.number_input(
@@ -87,23 +99,30 @@ def main():
     if not data.empty:
         st.success("Data loaded successfully!")
 
-        # Date range slider
+        # Date range slider with handling for single-date data
         min_date = data["date"].min().date()
         max_date = data["date"].max().date()
 
-        date_range = st.slider(
-            "Select Date Range:",
-            min_value=min_date,
-            max_value=max_date,
-            value=(min_date, max_date),
-        )
+        if min_date == max_date:
+            st.warning(f"All data is from a single day: {min_date}. Showing all data.")
+            filtered_data = data  # No filtering needed
+        else:
+            date_range = st.slider(
+                "Select Date Range:",
+                min_value=min_date,
+                max_value=max_date,
+                value=(min_date, max_date),
+            )
 
-        filtered_data = data[(data["date"] >= pd.to_datetime(date_range[0])) & (data["date"] <= pd.to_datetime(date_range[1]))]
+            filtered_data = data[
+                (data["date"] >= pd.Timestamp(date_range[0])) & (data["date"] <= pd.Timestamp(date_range[1]))
+            ]
 
         plot_data(filtered_data)
         display_statistics(filtered_data)
     else:
         st.warning("No reading data available to display.")
+        plot_data(pd.DataFrame(columns=["date", "words"]))
 
     st.write("Adjust the maximum words per day or the date range to refine the display.")
 
